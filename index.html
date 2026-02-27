@@ -627,6 +627,30 @@
   }
   .chat-input-area .input-field { font-size: 0.9rem; }
 
+  /* ── Fixed question panel ── */
+  .question-panel {
+    border-top: 1px solid var(--border);
+    background: var(--surface2);
+    padding: 1rem 1.25rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    flex-shrink: 0;
+  }
+  .question-panel-text {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.45;
+    font-family: 'Manrope', sans-serif;
+    padding-bottom: 0.25rem;
+  }
+  .question-panel-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
   .sidebar-toggle-btn {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -1495,7 +1519,7 @@
   .choice-wrap {
     display: flex;
     flex-direction: column;
-    border-radius: 12px;
+    border-radius: 10px;
     overflow: hidden;
     border: 1px solid var(--border);
     transition: border-color 0.18s;
@@ -1504,6 +1528,7 @@
   .choice-wrap .choice-card {
     border: none;
     border-radius: 0;
+    padding: 0.6rem 0.9rem;
   }
   .choice-wrap.selected { border-color: var(--accent); }
 
@@ -4512,8 +4537,11 @@
             <button class="sidebar-toggle-btn" onclick="toggleChatSidebar()" id="sidebar-toggle-btn" title="Toggle sidebar">▶</button>
           </div>
           <div class="chat-messages" id="chat-messages"></div>
-          <div class="chat-input-area" id="chat-input-area" style="flex-direction:column;padding:1rem 1.5rem;">
-            <div id="options-container" style="display:none;"></div>
+          <div id="options-container" style="display:none;"></div>
+          <!-- Fixed question + choices panel -->
+          <div class="question-panel" id="question-panel" style="display:none;">
+            <div class="question-panel-text" id="question-panel-text"></div>
+            <div class="question-panel-choices" id="question-panel-choices"></div>
           </div>
         </div>
         <div class="chat-sidebar">
@@ -5851,40 +5879,47 @@ function _buildChoiceCard(label, optText, impact) {
 
 function renderOptions(parsed) {
   // parsed is a JSON object: { question, options: [{label, text, impact}] }
-  const chatEl = document.getElementById('chat-messages');
-  if(!chatEl || !parsed || !parsed.options) return;
+  if(!parsed || !parsed.options) return;
+  const panel = document.getElementById('question-panel');
+  const panelText = document.getElementById('question-panel-text');
+  const panelChoices = document.getElementById('question-panel-choices');
+  if(!panel || !panelText || !panelChoices) return;
 
-  const choicesDiv = document.createElement('div');
-  choicesDiv.className = 'choices-msg';
-
+  panelText.textContent = parsed.question || '';
+  panelChoices.innerHTML = '';
   parsed.options.forEach(opt => {
-    choicesDiv.appendChild(_buildChoiceCard(opt.label, opt.text, opt.impact || null));
+    panelChoices.appendChild(_buildChoiceCard(opt.label, opt.text, opt.impact || null));
   });
+  panel.style.display = 'flex';
 
-  chatEl.appendChild(choicesDiv);
-  chatEl.scrollTop = chatEl.scrollHeight;
+  const chatEl = document.getElementById('chat-messages');
+  if(chatEl) chatEl.scrollTop = chatEl.scrollHeight;
 }
 
 function renderOptionsLegacy(text) {
   // Fallback for non-JSON AI responses
-  const chatEl = document.getElementById('chat-messages');
-  if(!chatEl) return;
   const matches = [...text.matchAll(/([A-D])\)\s*(.+?)(?=\n[A-D]\)|$)/gs)];
   if(matches.length === 0) return;
-  const choicesDiv = document.createElement('div');
-  choicesDiv.className = 'choices-msg';
+  const panel = document.getElementById('question-panel');
+  const panelText = document.getElementById('question-panel-text');
+  const panelChoices = document.getElementById('question-panel-choices');
+  if(!panel) return;
+  panelText.textContent = '';
+  panelChoices.innerHTML = '';
   matches.forEach(m => {
     const label = m[1];
     const full = m[2].trim().replace(/\n/g, ' ');
     const parts = full.split(/\s*\|\s*IMPACT:\s*/i);
-    choicesDiv.appendChild(_buildChoiceCard(label, parts[0].trim(), parts[1] ? parts[1].trim() : null));
+    panelChoices.appendChild(_buildChoiceCard(label, parts[0].trim(), parts[1] ? parts[1].trim() : null));
   });
-  chatEl.appendChild(choicesDiv);
-  chatEl.scrollTop = chatEl.scrollHeight;
+  panel.style.display = 'flex';
 }
 
 function clearOptions() {
-  // Choices are now inline in chat — no separate container to clear
+  const panel = document.getElementById('question-panel');
+  if(panel) panel.style.display = 'none';
+  const panelChoices = document.getElementById('question-panel-choices');
+  if(panelChoices) panelChoices.innerHTML = '';
 }
 
 async function generateScoring(history) {
@@ -7657,6 +7692,7 @@ function restart() {
   currentModalFile = '';
   mdBrowserActiveFile = '';
   document.getElementById('chat-messages').innerHTML = '';
+  clearOptions();
   if(document.getElementById('refine-history')) document.getElementById('refine-history').innerHTML = '';
   document.getElementById('refine-panel').style.display = 'none';
   document.getElementById('version-panel').style.display = 'none';
