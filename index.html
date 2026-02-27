@@ -1414,6 +1414,99 @@
     border: 1px solid;
   }
 
+  /* ── Inline choice cards ── */
+  .choices-msg {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    animation: msgIn 0.3s ease;
+  }
+  .choice-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: all 0.18s;
+    text-align: left;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .choice-card:active,
+  .choice-card:hover {
+    border-color: var(--accent);
+    background: rgba(242,185,13,0.07);
+  }
+  .choice-card.selected {
+    border-color: var(--accent);
+    background: rgba(242,185,13,0.13);
+    pointer-events: none;
+  }
+  .choice-card.disabled {
+    opacity: 0.42;
+    pointer-events: none;
+  }
+  .choice-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(242,185,13,0.12);
+    border: 1px solid rgba(242,185,13,0.3);
+    border-radius: 5px;
+    padding: 0.18rem 0.42rem;
+    flex-shrink: 0;
+  }
+  .choice-text {
+    flex: 1;
+    font-size: 0.9rem;
+    color: var(--text);
+    line-height: 1.4;
+    font-family: 'Manrope', sans-serif;
+  }
+  .choice-info-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.15rem 0.3rem;
+    flex-shrink: 0;
+    line-height: 1;
+    transition: color 0.15s;
+    border-radius: 50%;
+  }
+  .choice-info-btn:hover { color: var(--accent); }
+  .choice-impact {
+    display: none;
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: rgba(242,185,13,0.04);
+    border-top: 1px solid rgba(242,185,13,0.15);
+    padding: 0.5rem 1rem 0.6rem 1rem;
+    border-radius: 0 0 12px 12px;
+    line-height: 1.5;
+  }
+  .choice-impact.visible { display: block; }
+  .choice-wrap {
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: border-color 0.18s;
+  }
+  .choice-wrap:hover { border-color: var(--accent); }
+  .choice-wrap .choice-card {
+    border: none;
+    border-radius: 0;
+  }
+  .choice-wrap.selected { border-color: var(--accent); }
+
   .option-wrap {
     flex: 1;
     min-width: 200px;
@@ -1421,34 +1514,9 @@
     flex-direction: column;
     gap: 0.3rem;
   }
-  .option-btn {
-    width: 100%;
-  }
+  .option-btn { width: 100%; }
   .opt-text { flex: 1; }
-
-  .impact-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.35rem;
-    font-size: 0.72rem;
-    color: var(--muted);
-    padding: 0.3rem 0.6rem;
-    border-left: 2px solid var(--border);
-    line-height: 1.4;
-    transition: all 0.2s;
-  }
-  .impact-note .impact-icon {
-    font-size: 0.65rem;
-    margin-top: 0.1rem;
-    flex-shrink: 0;
-    opacity: 0.6;
-  }
-  .impact-note.selected {
-    border-left-color: var(--accent);
-    color: var(--accent);
-    opacity: 1 !important;
-  }
-  .impact-note.selected .impact-icon { opacity: 1; }
+  .impact-note { display: none; }
 
   .agent-type-badge {
     font-family: 'Space Mono', monospace;
@@ -4419,7 +4487,7 @@
           </div>
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input-area" id="chat-input-area" style="flex-direction:column;padding:1rem 1.5rem;">
-            <div id="options-container" style="display:flex;flex-wrap:wrap;gap:0.5rem;"></div>
+            <div id="options-container" style="display:none;"></div>
           </div>
         </div>
         <div class="chat-sidebar">
@@ -5637,27 +5705,22 @@ Make agent files detailed and professional. Each agent should be genuinely usefu
 }
 
 function selectOption(label, text) {
-  document.querySelectorAll('.option-btn').forEach(b => {
-    b.disabled = true;
-    if(b.dataset.label === label) {
-      b.style.borderColor = 'var(--accent)';
-      b.style.background = 'rgba(242,185,13,0.15)';
-      b.style.color = 'var(--accent)';
-    } else {
-      b.style.opacity = '0.3';
-    }
-  });
-  document.querySelectorAll('.option-wrap').forEach(w => {
-    const btn = w.querySelector('.option-btn');
-    const note = w.querySelector('.impact-note');
-    if(note) {
-      if(btn && btn.dataset.label === label) {
-        note.classList.add('selected');
-      } else {
-        note.style.opacity = '0.3';
+  // Mark all choice cards in the last choices-msg
+  const msgs = document.querySelectorAll('.choices-msg');
+  const last = msgs[msgs.length - 1];
+  if(last) {
+    last.querySelectorAll('.choice-wrap').forEach(w => {
+      const card = w.querySelector('.choice-card');
+      if(card) {
+        if(card.dataset.label === label) {
+          w.classList.add('selected');
+          card.classList.add('selected');
+        } else {
+          card.classList.add('disabled');
+        }
       }
-    }
-  });
+    });
+  }
   setTimeout(() => submitAnswer(label + ') ' + text), 400);
 }
 
@@ -5693,12 +5756,14 @@ async function submitAnswer(answer) {
 }
 
 function renderOptions(text) {
-  const container = document.getElementById('options-container');
-  if(!container) return;
-  container.innerHTML = '';
+  const chatEl = document.getElementById('chat-messages');
+  if(!chatEl) return;
 
   const matches = [...text.matchAll(/([A-D])\)\s*(.+?)(?=\n[A-D]\)|$)/gs)];
   if(matches.length === 0) return;
+
+  const choicesDiv = document.createElement('div');
+  choicesDiv.className = 'choices-msg';
 
   matches.forEach(m => {
     const label = m[1];
@@ -5708,30 +5773,54 @@ function renderOptions(text) {
     const impact = impactSplit[1] ? impactSplit[1].trim() : null;
 
     const wrap = document.createElement('div');
-    wrap.className = 'option-wrap';
+    wrap.className = 'choice-wrap';
 
-    const btn = document.createElement('button');
-    btn.className = 'option-btn';
-    btn.dataset.label = label;
-    btn.dataset.opttext = optText;
-    btn.innerHTML = `<span class="opt-label">${label}</span><span class="opt-text">${optText}</span>`;
-    btn.onclick = () => selectOption(label, optText);
-    wrap.appendChild(btn);
+    const card = document.createElement('button');
+    card.className = 'choice-card';
+    card.dataset.label = label;
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'choice-label';
+    labelEl.textContent = label;
+
+    const textEl = document.createElement('span');
+    textEl.className = 'choice-text';
+    textEl.textContent = optText;
+
+    card.appendChild(labelEl);
+    card.appendChild(textEl);
 
     if(impact) {
-      const note = document.createElement('div');
-      note.className = 'impact-note';
-      note.innerHTML = `<span class="impact-icon">⚡</span><span>${impact}</span>`;
-      wrap.appendChild(note);
+      const infoBtn = document.createElement('button');
+      infoBtn.className = 'choice-info-btn';
+      infoBtn.title = 'More info';
+      infoBtn.textContent = 'ℹ️';
+      infoBtn.onclick = (e) => {
+        e.stopPropagation();
+        impactEl.classList.toggle('visible');
+      };
+      card.appendChild(infoBtn);
+
+      const impactEl = document.createElement('div');
+      impactEl.className = 'choice-impact';
+      impactEl.textContent = impact;
+
+      wrap.appendChild(card);
+      wrap.appendChild(impactEl);
+    } else {
+      wrap.appendChild(card);
     }
 
-    container.appendChild(wrap);
+    card.onclick = () => selectOption(label, optText);
+    choicesDiv.appendChild(wrap);
   });
+
+  chatEl.appendChild(choicesDiv);
+  chatEl.scrollTop = chatEl.scrollHeight;
 }
 
 function clearOptions() {
-  const c = document.getElementById('options-container');
-  if(c) c.innerHTML = '';
+  // Choices are now inline in chat — no separate container to clear
 }
 
 async function generateScoring(history) {
