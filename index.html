@@ -644,6 +644,19 @@ flex-direction: column;
 gap: 0.6rem;
 flex-shrink: 0;
 }
+.question-section-badge {
+font-family: ‘Space Mono’, monospace;
+font-size: 0.65rem;
+font-weight: 700;
+letter-spacing: 0.1em;
+color: var(–accent);
+background: rgba(242,185,13,0.1);
+border: 1px solid rgba(242,185,13,0.25);
+border-radius: 6px;
+padding: 0.2rem 0.6rem;
+align-self: flex-start;
+margin-bottom: 0.1rem;
+}
 .question-panel-text {
 font-size: 0.95rem;
 font-weight: 600;
@@ -5346,19 +5359,19 @@ const T = {
 
     levels: [
       {
-        id: 'iskra', emoji: '✨', name: 'Iskra', tagline: 'Spark — just getting started',
+        id: 'iskra', emoji: '✨', name: 'Spark', tagline: 'Spark — just getting started',
         desc: 'Simple MVP, 2-3 agents, no-code friendly. Perfect for beginners.',
         color: '#f2b90d', questions: 4, agentCount: '2-3',
         focus: 'core features, simplicity, ease of use'
       },
       {
-        id: 'plomien', emoji: '🔥', name: 'Płomień', tagline: 'Flame — ready to build',
+        id: 'plomien', emoji: '🔥', name: 'Flame', tagline: 'Flame — ready to build',
         desc: 'Full-featured app, 3-4 agents, some technical knowledge assumed.',
         color: '#f59e0b', questions: 5, agentCount: '3-4',
         focus: 'features, integrations, user flows, basic tech stack'
       },
       {
-        id: 'pozar', emoji: '🌋', name: 'Pożar', tagline: 'Fire — serious project',
+        id: 'pozar', emoji: '🌋', name: 'Fire', tagline: 'Fire — serious project',
         desc: 'Complex system, 4-5 agents, APIs, auth, data pipelines.',
         color: '#ef4444', questions: 6, agentCount: '4-5',
         focus: 'architecture, scalability, security, APIs, data models'
@@ -5726,31 +5739,46 @@ Complexity level: ${levelData.name} — ${levelData.tagline}
 Agent count to generate: ${levelData.agentCount}
 Focus areas for this level: ${levelData.focus}
 
-INTERVIEW PHASE (exactly ${MAX_QUESTIONS} questions, calibrated for ${levelData.name} level):
-- Ask ONE question at a time
-- Every question MUST be closed — provide exactly 4 answer options
-- Cover topics appropriate for ${levelData.name} level, focusing on: ${levelData.focus}
-- For Iskra: simple, friendly questions — avoid jargon, focus on purpose and users
-- For Płomień: balanced questions — features, integrations, basic tech choices
-- For Pożar: technical questions — architecture, APIs, data, security considerations
-- For Inferno: deep technical questions — microservices, DevOps, compliance, scalability, multi-tenancy
-- Calibrate vocabulary and depth to the chosen level
-- Be brief and direct
-- Respond to EVERY interview question with ONLY a JSON object, no extra text before or after:
+INTERVIEW STRUCTURE — ${MAX_QUESTIONS} questions total, split into 3 adaptive sections:
+
+SECTION 1 — BUSINESS (first ${Math.ceil(MAX_QUESTIONS * 0.3)} questions):
+Focus: target users, monetization model, core value proposition, market.
+Example topics: who uses the app, how it makes money, what problem it solves, main competitors.
+
+SECTION 2 — FRONTEND (next ${Math.ceil(MAX_QUESTIONS * 0.35)} questions):
+Focus: UI paradigm, navigation, key user flows, device targets, design priorities.
+Example topics: onboarding flow, main screens, mobile vs web, key interactions.
+
+SECTION 3 — BACKEND (remaining questions):
+Focus: data storage, auth, external APIs, scalability, infrastructure.
+Example topics: authentication method, data model, third-party integrations, hosting preferences.
+
+ADAPTIVE RULES — CRITICAL:
+- Each question MUST reference or build on previous answers. Never ask in a vacuum.
+- If user chose "mobile-first" → ask about offline mode or push notifications next.
+- If user chose "subscription model" → ask about billing provider and free tier strategy.
+- If user chose "social login" → ask about user profile data needs.
+- Questions must form a coherent decision tree that leads to a buildable specification.
+- Calibrate depth: ${levelData.name} level — ${levelData.focus}
+- For Spark: friendly, no jargon. For Flame: balanced. For Fire: technical. For Inferno: enterprise-deep.
+- Always track what has been decided and reference it explicitly in the next question.
+
+RESPONSE FORMAT — for EVERY question respond with ONLY this JSON, no extra text:
 {
-  "question": "Your question here?",
+  "section": "Business" | "Frontend" | "Backend",
+  "question": "Your question here — referencing prior choices where relevant?",
   "options": [
-    { "label": "A", "text": "Option A text", "impact": "1 sentence impact under 15 words" },
-    { "label": "B", "text": "Option B text", "impact": "1 sentence impact under 15 words" },
-    { "label": "C", "text": "Option C text", "impact": "1 sentence impact under 15 words" },
-    { "label": "D", "text": "Option D text", "impact": "1 sentence impact under 15 words" }
+    { "label": "A", "text": "Option A text", "impact": "1 sentence: concrete consequence for the app under 15 words" },
+    { "label": "B", "text": "Option B text", "impact": "1 sentence: concrete consequence for the app under 15 words" },
+    { "label": "C", "text": "Option C text", "impact": "1 sentence: concrete consequence for the app under 15 words" },
+    { "label": "D", "text": "Option D text", "impact": "1 sentence: concrete consequence for the app under 15 words" }
   ]
 }
 
-- After exactly ${MAX_QUESTIONS} questions, respond with ONLY:
-{ "complete": true, "summary": "Brief confirmation of what you understood about the app." }
+After exactly ${MAX_QUESTIONS} questions respond with ONLY:
+{ "complete": true, "summary": "Coherent 3-4 sentence spec summary covering business model, frontend approach, and backend architecture based on all answers." }
 
-IMPORTANT: Never ask open-ended questions. Always provide exactly 4 options. Always respond with pure JSON only — no markdown, no prose outside JSON.
+IMPORTANT: Pure JSON only. No markdown. No text outside JSON. Make every question feel like the natural next step after the previous answer.
 
 GENERATION PHASE (when you receive [GENERATE]):
 Respond with a JSON object ONLY, no markdown, no explanation. Format:
@@ -5775,9 +5803,9 @@ AGENT TYPES — you MUST generate both types:
 - "business" agents: strategists who provide context, validation and guidance
 
 Distribute agent types based on level:
-- Iskra: 2 technical, 1 business
-- Płomień: 2 technical, 2 business
-- Pożar: 3 technical, 2 business
+- Spark: 2 technical, 1 business
+- Flame: 2 technical, 2 business
+- Fire: 3 technical, 2 business
 - Inferno: 4 technical, 2 business
 
 Make agent files detailed and professional. Each agent should be genuinely useful for the specific app described.`;
@@ -5906,6 +5934,21 @@ function renderOptions(parsed) {
   const panelText = document.getElementById('question-panel-text');
   const panelChoices = document.getElementById('question-panel-choices');
   if(!panel || !panelText || !panelChoices) return;
+
+  // Show section badge if present
+  let sectionBadge = panel.querySelector('.question-section-badge');
+  if(!sectionBadge) {
+    sectionBadge = document.createElement('div');
+    sectionBadge.className = 'question-section-badge';
+    panel.insertBefore(sectionBadge, panel.firstChild);
+  }
+  const sectionIcons = { Business: '💼', Frontend: '🎨', Backend: '⚙️' };
+  if(parsed.section) {
+    sectionBadge.textContent = (sectionIcons[parsed.section] || '') + ' ' + parsed.section;
+    sectionBadge.style.display = 'inline-block';
+  } else {
+    sectionBadge.style.display = 'none';
+  }
 
   panelText.textContent = parsed.question || '';
   panelChoices.innerHTML = '';
