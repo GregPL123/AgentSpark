@@ -3575,9 +3575,54 @@
     border-top: none !important;
   }
 
-  /* Refine panel */
+  /* Refine panel — 2-step UX */
   .refine-history { scrollbar-width: none; }
   .refine-history::-webkit-scrollbar { display: none; }
+
+  .refine-chips-label {
+    font-size: 0.68rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+  }
+  .refine-step1-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+  }
+  .refine-send-btn {
+    padding: 0.6rem 1.4rem;
+    font-size: 0.9rem;
+    border-radius: 10px;
+  }
+  .refine-step2-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .refine-edit-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: 'Manrope', sans-serif;
+    transition: all 0.15s;
+  }
+  .refine-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .refine-apply-btn {
+    padding: 0.6rem 1.4rem;
+    font-size: 0.9rem;
+    border-radius: 10px;
+  }
 
 
   /* ═══════════════════════════════════════════════════════
@@ -4606,7 +4651,7 @@
         <p id="result-sub" style="color:var(--muted);">Download your files and deploy to Google Antigravity</p>
       </div>
 
-      <!-- REFINE PANEL — near top for context -->
+      <!-- REFINE PANEL — simplified 2-step UX -->
       <div id="refine-panel" class="refine-panel" style="display:none;">
         <div class="refine-header">
           <div>
@@ -4615,22 +4660,39 @@
           </div>
           <button class="refine-close-btn" onclick="closeRefine()">✕</button>
         </div>
-        <div class="refine-action-chips" id="refine-action-chips"></div>
-        <div class="refine-history" id="refine-history"></div>
-        <div class="refine-input-row">
-          <textarea class="refine-textarea" id="refine-input"
-            placeholder="e.g. Add a Security Agent..."
-            rows="2"
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitRefine();}"></textarea>
-          <button class="btn-primary refine-submit-btn" id="refine-submit-btn" onclick="submitRefine()">
-            <span id="refine-submit-label">Apply →</span>
-          </button>
+
+        <!-- STEP 1: Input + chips -->
+        <div id="refine-step1">
+          <div class="refine-chips-label" id="refine-chips-label">Quick suggestions:</div>
+          <div class="refine-action-chips" id="refine-action-chips"></div>
+          <div class="refine-input-row">
+            <textarea class="refine-textarea" id="refine-input"
+              placeholder="e.g. Add a Security Agent..."
+              rows="3"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitRefine();}"></textarea>
+          </div>
+          <div class="refine-step1-footer">
+            <span id="refine-counter" style="font-size:0.7rem;color:var(--muted);font-family:'Space Mono',monospace;"></span>
+            <button class="btn-primary refine-send-btn" id="refine-submit-btn" onclick="submitRefine()">
+              <span id="refine-submit-label">Send →</span>
+            </button>
+          </div>
         </div>
-        <div class="refine-footer">
-          <span id="refine-counter" style="font-size:0.7rem;color:var(--muted);font-family:'Space Mono',monospace;"></span>
-          <button class="refine-revert-btn" id="refine-revert-btn" onclick="revertLastRefine()" style="display:none;">
-            ↩ Revert last change
-          </button>
+
+        <!-- STEP 2: AI response + Apply -->
+        <div id="refine-step2" style="display:none;">
+          <div class="refine-history" id="refine-history"></div>
+          <div class="refine-step2-footer">
+            <button class="refine-revert-btn" id="refine-revert-btn" onclick="revertLastRefine()" style="display:none;">
+              ↩ Revert
+            </button>
+            <button class="refine-edit-btn" onclick="backToRefineStep1()">
+              ✏ Edit
+            </button>
+            <button class="btn-primary refine-apply-btn" id="refine-apply-btn" onclick="applyRefinement()" style="display:none;">
+              ✓ <span id="refine-apply-label">Apply Changes</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -6403,6 +6465,16 @@ function openRefine() {
   document.getElementById('refine-input').placeholder = t('refinePlaceholder');
   document.getElementById('refine-submit-label').textContent = t('refineApply');
 
+  // Always start at step 1
+  const s1 = document.getElementById('refine-step1');
+  const s2 = document.getElementById('refine-step2');
+  if(s1) s1.style.display = 'block';
+  if(s2) s2.style.display = 'none';
+  const applyBtn = document.getElementById('refine-apply-btn');
+  if(applyBtn) applyBtn.style.display = 'none';
+  document.getElementById('refine-history').innerHTML = '';
+  _pendingRefineData = null;
+
   const chips = document.getElementById('refine-action-chips');
   chips.innerHTML = '';
   t('refineActions').forEach(action => {
@@ -6437,7 +6509,14 @@ function openRefine() {
 function closeRefine() {
   document.getElementById('refine-panel').style.display = 'none';
   selectedRefineAction = null;
-  // If panel is closed mid-request, unlock state so user can refine again later
+  _pendingRefineData = null;
+  // Reset to step 1
+  const s1 = document.getElementById('refine-step1');
+  const s2 = document.getElementById('refine-step2');
+  if(s1) s1.style.display = 'block';
+  if(s2) s2.style.display = 'none';
+  const applyBtn = document.getElementById('refine-apply-btn');
+  if(applyBtn) applyBtn.style.display = 'none';
   if(isRefining) {
     isRefining = false;
     document.getElementById('refine-submit-btn').disabled = false;
@@ -6532,58 +6611,59 @@ RULES:
 - The [UPDATED_TEAM] marker must appear on its own line`;
 }
 
+// Pending refine data (step 2 buffer)
+let _pendingRefineData = null;
+
 async function submitRefine() {
   const input = document.getElementById('refine-input');
   const text = input.value.trim();
   if(!text || isRefining) return;
 
-  const actionCtx = selectedRefineAction ? `[Action: ${selectedRefineAction}] ` : '';
+  const actionCtx = selectedRefineAction ? '[Action: ' + selectedRefineAction + '] ' : '';
   const fullRequest = actionCtx + text;
 
-  input.value = '';
   isRefining = true;
   document.getElementById('refine-submit-btn').disabled = true;
 
+  // Switch to step 2
+  document.getElementById('refine-step1').style.display = 'none';
+  document.getElementById('refine-step2').style.display = 'block';
+
+  const histEl = document.getElementById('refine-history');
+  histEl.innerHTML = '';
   addRefineMessage('user', text);
   addRefineThinking();
 
-  refineSnapshots.push(JSON.parse(JSON.stringify({ agents: generatedAgents, files: generatedFiles })));
-
-  // Save rich version BEFORE we mutate state
-  const preSnap = JSON.parse(JSON.stringify({ agents: generatedAgents, files: generatedFiles }));
-
   try {
-    const history = refineHistory.map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`).join('\n');
+    const history = refineHistory.map(m => (m.role === 'user' ? 'User' : 'AI') + ': ' + m.text).join('\n');
     const prompt = history
-      ? `Previous context:\n${history}\n\nNew request: ${fullRequest}`
-      : `Request: ${fullRequest}`;
+      ? 'Previous context:\n' + history + '\n\nNew request: ' + fullRequest
+      : 'Request: ' + fullRequest;
 
     const refineActionEmoji = { improve:'⚡', add:'➕', remove:'🗑', connections:'🔗' };
     const refineEmoji = refineActionEmoji[selectedRefineAction] || '✏️';
-    const refineVer   = versionHistory.length + 1;
-    const raw = await callGemini(getRefineSystemPrompt(), prompt, `${refineEmoji} Refine · v${refineVer}${selectedRefineAction ? ' · ' + selectedRefineAction : ''}`);
+    const refineVer = versionHistory.length + 1;
+    const raw = await callGemini(getRefineSystemPrompt(), prompt, refineEmoji + ' Refine · v' + refineVer + (selectedRefineAction ? ' · ' + selectedRefineAction : ''));
     removeRefineThinking();
 
     const markerIdx = raw.indexOf('[UPDATED_TEAM]');
     let summary = '', jsonPart = '';
-
     if(markerIdx !== -1) {
       summary = raw.slice(0, markerIdx).trim();
       jsonPart = raw.slice(markerIdx + '[UPDATED_TEAM]'.length).trim();
     } else {
-      const jsonMatch = raw.match(/\{[\s\S]*"agents"[\s\S]*\}/);
-      if(jsonMatch) {
-        jsonPart = jsonMatch[0];
-        summary = raw.slice(0, raw.indexOf(jsonMatch[0])).trim() || (lang === 'en' ? 'Team updated.' : 'Zespół zaktualizowany.');
+      const jm = raw.match(/\{[\s\S]*"agents"[\s\S]*\}/);
+      if(jm) {
+        jsonPart = jm[0];
+        summary = raw.slice(0, raw.indexOf(jm[0])).trim() || (lang === 'en' ? 'Team updated.' : 'Zespół zaktualizowany.');
       } else {
         throw new Error(lang === 'en' ? 'Could not parse updated team.' : 'Nie udało się przetworzyć zaktualizowanego zespołu.');
       }
     }
 
-    const jsonMatch = jsonPart.match(/\{[\s\S]*\}/);
-    if(!jsonMatch) throw new Error('No JSON in response');
-    const data = JSON.parse(jsonMatch[0]);
-
+    const jm2 = jsonPart.match(/\{[\s\S]*\}/);
+    if(!jm2) throw new Error('No JSON in response');
+    const data = JSON.parse(jm2[0]);
     if(!data.agents || !Array.isArray(data.agents)) throw new Error('Invalid agents data');
 
     const prevIds = new Set(generatedAgents.map(a => a.id));
@@ -6591,81 +6671,92 @@ async function submitRefine() {
     const addedIds   = [...newIds].filter(id => !prevIds.has(id));
     const removedIds = [...prevIds].filter(id => !newIds.has(id));
     const changedIds = [...newIds].filter(id => prevIds.has(id) && JSON.stringify(data.agents.find(a=>a.id===id)) !== JSON.stringify(generatedAgents.find(a=>a.id===id)));
-
-    // Capture removed agent names BEFORE overwriting generatedAgents
-    const removedNames = Object.fromEntries(
-      removedIds.map(id => [id, generatedAgents.find(a => a.id === id)?.name || id])
-    );
-
-    generatedAgents = data.agents;
-
-    data.agents.forEach(a => {
-      generatedFiles[`agent-${a.id}.md`] = a.agentMd || `# Agent: ${a.name}\n\n**Role:** ${a.role || ''}\n\n${a.description || ''}`;
-      generatedFiles[`skill-${a.id}.md`] = a.skillMd || `# Skill: ${a.name}\n\n## Capabilities\n\n${a.description || ''}`;
-    });
-    removedIds.forEach(id => {
-      delete generatedFiles[`agent-${id}.md`];
-      delete generatedFiles[`skill-${id}.md`];
-    });
-    if(data.teamConfig) generatedFiles['team-config.md'] = data.teamConfig;
-    generatedFiles['README.md'] = generateReadme();
-
-    refineHistory.push({ role: 'user', text: fullRequest });
-    refineHistory.push({ role: 'ai', text: summary });
-
-    // ── Save version snapshot ──────────────────────────────
-    const vNum = versionHistory.length + 2; // v1 = origin, v2+ = refines
-    versionHistory.push({
-      id: Date.now(),
-      label: text.length > 60 ? text.slice(0, 57) + '…' : text,
-      ts: new Date(),
-      agents: JSON.parse(JSON.stringify(generatedAgents)),
-      files: JSON.parse(JSON.stringify(generatedFiles)),
-      diff: { added: addedIds, removed: removedIds, changed: changedIds },
-      removedNames,
-      agentNames: Object.fromEntries(data.agents.map(a => [a.id, a.name])),
-      vNum,
-    });
-    renderVersionPanel();
+    const removedNames = Object.fromEntries(removedIds.map(id => [id, generatedAgents.find(a => a.id === id)?.name || id]));
 
     const diffBadges = [
-      ...addedIds.map(id => `<span class="refine-diff-added">+${data.agents.find(a=>a.id===id)?.name || id}</span>`),
-      ...removedIds.map(id => `<span class="refine-diff-removed">-${removedNames[id]}</span>`),
-      ...changedIds.map(id => `<span class="refine-diff-changed">~${data.agents.find(a=>a.id===id)?.name || id}</span>`),
+      ...addedIds.map(id => '<span class="refine-diff-added">+' + (data.agents.find(a=>a.id===id)?.name || id) + '</span>'),
+      ...removedIds.map(id => '<span class="refine-diff-removed">-' + removedNames[id] + '</span>'),
+      ...changedIds.map(id => '<span class="refine-diff-changed">~' + (data.agents.find(a=>a.id===id)?.name || id) + '</span>'),
     ].join(' ');
 
     addRefineMessage('ai', (summary || '') + (diffBadges ? '<br/><br/>' + diffBadges : ''));
+    _pendingRefineData = { data, text, fullRequest, addedIds, removedIds, changedIds, removedNames, summary };
 
+    const applyBtn = document.getElementById('refine-apply-btn');
+    if(applyBtn) {
+      applyBtn.style.display = 'inline-flex';
+      document.getElementById('refine-apply-label').textContent = t('refineApply');
+    }
     updateRefineCounter();
-
-    showResults(true);
-    scheduleAutoSave(); // auto-save after refine (#1)
-
-    setTimeout(() => {
-      addedIds.forEach(id => {
-        const card = document.querySelector(`[data-agent-id="${id}"]`);
-        if(card) card.classList.add('just-added');
-      });
-      changedIds.forEach(id => {
-        const card = document.querySelector(`[data-agent-id="${id}"]`);
-        if(card) card.classList.add('just-updated');
-      });
-    }, 150);
-
-    setTimeout(() => buildGraphFromAgents(), 300);
-
-    showNotif(lang === 'en' ? '✓ Team updated!' : '✓ Zespół zaktualizowany!');
 
   } catch(err) {
     removeRefineThinking();
-    const snap = refineSnapshots.pop();
-    if(snap) { generatedAgents = snap.agents; generatedFiles = snap.files; }
-    addRefineMessage('ai', `<span style="color:var(--accent2)">⚠ ${err.message}</span>`);
-    showNotif(lang === 'en' ? '⚠ Refine failed, reverted.' : '⚠ Błąd, przywrócono poprzedni stan.', true);
+    addRefineMessage('ai', '<span style="color:var(--accent2)">⚠ ' + err.message + '</span>');
+    showNotif(lang === 'en' ? '⚠ Refine failed.' : '⚠ Błąd generowania.', true);
+    _pendingRefineData = null;
   }
 
   isRefining = false;
   document.getElementById('refine-submit-btn').disabled = false;
+}
+
+function applyRefinement() {
+  if(!_pendingRefineData) return;
+  const { data, text, fullRequest, addedIds, removedIds, changedIds, removedNames, summary } = _pendingRefineData;
+  _pendingRefineData = null;
+
+  refineSnapshots.push(JSON.parse(JSON.stringify({ agents: generatedAgents, files: generatedFiles })));
+
+  generatedAgents = data.agents;
+  data.agents.forEach(a => {
+    generatedFiles['agent-' + a.id + '.md'] = a.agentMd || '# Agent: ' + a.name + '\n\n**Role:** ' + (a.role || '') + '\n\n' + (a.description || '');
+    generatedFiles['skill-' + a.id + '.md'] = a.skillMd || '# Skill: ' + a.name + '\n\n## Capabilities\n\n' + (a.description || '');
+  });
+  removedIds.forEach(id => {
+    delete generatedFiles['agent-' + id + '.md'];
+    delete generatedFiles['skill-' + id + '.md'];
+  });
+  if(data.teamConfig) generatedFiles['team-config.md'] = data.teamConfig;
+  generatedFiles['README.md'] = generateReadme();
+
+  refineHistory.push({ role: 'user', text: fullRequest });
+  refineHistory.push({ role: 'ai', text: summary });
+
+  const vNum = versionHistory.length + 2;
+  versionHistory.push({
+    id: Date.now(),
+    label: text.length > 60 ? text.slice(0, 57) + '…' : text,
+    ts: new Date(),
+    agents: JSON.parse(JSON.stringify(generatedAgents)),
+    files: JSON.parse(JSON.stringify(generatedFiles)),
+    diff: { added: addedIds, removed: removedIds, changed: changedIds },
+    removedNames,
+    agentNames: Object.fromEntries(data.agents.map(a => [a.id, a.name])),
+    vNum,
+  });
+  renderVersionPanel();
+  closeRefine();
+  showResults(true);
+  scheduleAutoSave();
+
+  setTimeout(() => {
+    addedIds.forEach(id => { const c = document.querySelector('[data-agent-id="' + id + '"]'); if(c) c.classList.add('just-added'); });
+    changedIds.forEach(id => { const c = document.querySelector('[data-agent-id="' + id + '"]'); if(c) c.classList.add('just-updated'); });
+  }, 150);
+  setTimeout(() => buildGraphFromAgents(), 300);
+  showNotif(lang === 'en' ? '✓ Team updated!' : '✓ Zespół zaktualizowany!');
+  const revertBtn = document.getElementById('refine-revert-btn');
+  if(revertBtn) revertBtn.style.display = 'inline-flex';
+}
+
+function backToRefineStep1() {
+  _pendingRefineData = null;
+  document.getElementById('refine-step1').style.display = 'block';
+  document.getElementById('refine-step2').style.display = 'none';
+  const applyBtn = document.getElementById('refine-apply-btn');
+  if(applyBtn) applyBtn.style.display = 'none';
+  document.getElementById('refine-history').innerHTML = '';
+  document.getElementById('refine-input').focus();
 }
 
 function revertLastRefine() {
