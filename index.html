@@ -5620,11 +5620,21 @@ function startChat() {
 
   const systemPrompt = getSystemPrompt();
   addTypingIndicator();
-  callGemini(systemPrompt, `The user wants to build: "${currentTopic}". Start the interview with a warm greeting and your FIRST question. Be concise. Ask only one question at a time.`, '🎤 Interview · Start')
+  callGemini(systemPrompt, `The user wants to build: "${currentTopic}". Start the interview with your FIRST question. Respond ONLY with the JSON object as specified — no greeting text, just the JSON.`, '🎤 Interview · Start')
     .then(reply => {
       removeTypingIndicator();
-      addMessage('ai', reply);
-      renderOptions(reply);
+      let parsed = null;
+      try {
+        const m = reply.match(/\{[\s\S]*\}/);
+        if(m) parsed = JSON.parse(m[0]);
+      } catch(e) {}
+      if(parsed && parsed.question && parsed.options) {
+        addMessage('ai', parsed.question);
+        renderOptions(parsed);
+      } else {
+        addMessage('ai', reply);
+        renderOptionsLegacy(reply);
+      }
     })
     .catch(err => {
       removeTypingIndicator();
@@ -5652,26 +5662,21 @@ INTERVIEW PHASE (exactly ${MAX_QUESTIONS} questions, calibrated for ${levelData.
 - For Inferno: deep technical questions — microservices, DevOps, compliance, scalability, multi-tenancy
 - Calibrate vocabulary and depth to the chosen level
 - Be brief and direct
-- Format each question EXACTLY like this (no deviation):
+- Respond to EVERY interview question with ONLY a JSON object, no extra text before or after:
+{
+  "question": "Your question here?",
+  "options": [
+    { "label": "A", "text": "Option A text", "impact": "1 sentence impact under 15 words" },
+    { "label": "B", "text": "Option B text", "impact": "1 sentence impact under 15 words" },
+    { "label": "C", "text": "Option C text", "impact": "1 sentence impact under 15 words" },
+    { "label": "D", "text": "Option D text", "impact": "1 sentence impact under 15 words" }
+  ]
+}
 
-QUESTION: [Your question here?]
-A) [Option A]
-B) [Option B]
-C) [Option C]
-D) [Option D]
+- After exactly ${MAX_QUESTIONS} questions, respond with ONLY:
+{ "complete": true, "summary": "Brief confirmation of what you understood about the app." }
 
-- After exactly ${MAX_QUESTIONS} questions, write a brief confirmation of what you understood, then end with: [INTERVIEW_COMPLETE]
-
-IMPORTANT: Never ask open-ended questions. Always provide exactly 4 options labeled A) B) C) D).
-
-QUESTION FORMAT — for every question you must also add an impact note for each option:
-QUESTION: [Your question here?]
-A) [Option A] | IMPACT: [1 sentence: what consequence does choosing A have on the app]
-B) [Option B] | IMPACT: [1 sentence: what consequence does choosing B have on the app]
-C) [Option C] | IMPACT: [1 sentence: what consequence does choosing C have on the app]
-D) [Option D] | IMPACT: [1 sentence: what consequence does choosing D have on the app]
-
-The IMPACT must be specific and directly relevant to the app being built. Keep it under 15 words.
+IMPORTANT: Never ask open-ended questions. Always provide exactly 4 options. Always respond with pure JSON only — no markdown, no prose outside JSON.
 
 GENERATION PHASE (when you receive [GENERATE]):
 Respond with a JSON object ONLY, no markdown, no explanation. Format:
@@ -5734,19 +5739,42 @@ async function submitAnswer(answer) {
     addTypingIndicator();
     try {
       const history = chatHistory.map(m => `${m.role === 'user' ? 'User' : 'AgentSpark'}: ${m.text}`).join('\n');
-      const prompt = `${history}\n\nThis was answer ${questionCount} of ${MAX_QUESTIONS}. Ask next closed question with 4 options, or wrap up if done.`;
+      const prompt = `${history}\n\nThis was answer ${questionCount} of ${MAX_QUESTIONS}. Ask next question or finalize.`;
       const reply = await callGemini(getSystemPrompt(), prompt, `🎤 Interview · Q${questionCount} of ${MAX_QUESTIONS}`);
       removeTypingIndicator();
-      addMessage('ai', reply);
-      chatHistory.push({ role:'ai', text: reply });
 
-      if(reply.includes('[INTERVIEW_COMPLETE]') || questionCount >= MAX_QUESTIONS) {
+      // Parse JSON response
+      let parsed = null;
+      try {
+        const jsonMatch = reply.match(/\{[\s\S]*\}/);
+        if(jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+      } catch(e) { /* fallback below */ }
+
+      if(parsed && parsed.complete) {
+        // Interview complete
+        if(parsed.summary) addMessage('ai', parsed.summary);
+        chatHistory.push({ role:'ai', text: parsed.summary || 'Interview complete.' });
         conversationState = 'generating';
         renderProgressSteps(1);
         clearOptions();
         setTimeout(generateAgents, 1200);
+      } else if(parsed && parsed.question && parsed.options) {
+        // Valid question JSON — show question as AI message, options as cards
+        addMessage('ai', parsed.question);
+        chatHistory.push({ role:'ai', text: parsed.question });
+        renderOptions(parsed);
       } else {
-        renderOptions(reply);
+        // Fallback: show raw reply and try legacy parse
+        addMessage('ai', reply);
+        chatHistory.push({ role:'ai', text: reply });
+        if(reply.includes('[INTERVIEW_COMPLETE]') || questionCount >= MAX_QUESTIONS) {
+          conversationState = 'generating';
+          renderProgressSteps(1);
+          clearOptions();
+          setTimeout(generateAgents, 1200);
+        } else {
+          renderOptionsLegacy(reply);
+        }
       }
     } catch(err) {
       removeTypingIndicator();
@@ -5755,66 +5783,78 @@ async function submitAnswer(answer) {
   }
 }
 
-function renderOptions(text) {
-  const chatEl = document.getElementById('chat-messages');
-  if(!chatEl) return;
+function _buildChoiceCard(label, optText, impact) {
+  const wrap = document.createElement('div');
+  wrap.className = 'choice-wrap';
 
-  const matches = [...text.matchAll(/([A-D])\)\s*(.+?)(?=\n[A-D]\)|$)/gs)];
-  if(matches.length === 0) return;
+  const card = document.createElement('button');
+  card.className = 'choice-card';
+  card.dataset.label = label;
+
+  const labelEl = document.createElement('span');
+  labelEl.className = 'choice-label';
+  labelEl.textContent = label;
+
+  const textEl = document.createElement('span');
+  textEl.className = 'choice-text';
+  textEl.textContent = optText;
+
+  card.appendChild(labelEl);
+  card.appendChild(textEl);
+
+  if(impact) {
+    const infoBtn = document.createElement('button');
+    infoBtn.className = 'choice-info-btn';
+    infoBtn.title = 'Show details';
+    infoBtn.textContent = 'ℹ️';
+    const impactEl = document.createElement('div');
+    impactEl.className = 'choice-impact';
+    impactEl.textContent = impact;
+    infoBtn.onclick = (e) => {
+      e.stopPropagation();
+      impactEl.classList.toggle('visible');
+    };
+    card.appendChild(infoBtn);
+    wrap.appendChild(card);
+    wrap.appendChild(impactEl);
+  } else {
+    wrap.appendChild(card);
+  }
+
+  card.onclick = () => selectOption(label, optText);
+  return wrap;
+}
+
+function renderOptions(parsed) {
+  // parsed is a JSON object: { question, options: [{label, text, impact}] }
+  const chatEl = document.getElementById('chat-messages');
+  if(!chatEl || !parsed || !parsed.options) return;
 
   const choicesDiv = document.createElement('div');
   choicesDiv.className = 'choices-msg';
 
+  parsed.options.forEach(opt => {
+    choicesDiv.appendChild(_buildChoiceCard(opt.label, opt.text, opt.impact || null));
+  });
+
+  chatEl.appendChild(choicesDiv);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function renderOptionsLegacy(text) {
+  // Fallback for non-JSON AI responses
+  const chatEl = document.getElementById('chat-messages');
+  if(!chatEl) return;
+  const matches = [...text.matchAll(/([A-D])\)\s*(.+?)(?=\n[A-D]\)|$)/gs)];
+  if(matches.length === 0) return;
+  const choicesDiv = document.createElement('div');
+  choicesDiv.className = 'choices-msg';
   matches.forEach(m => {
     const label = m[1];
     const full = m[2].trim().replace(/\n/g, ' ');
-    const impactSplit = full.split(/\s*\|\s*IMPACT:\s*/i);
-    const optText = impactSplit[0].trim();
-    const impact = impactSplit[1] ? impactSplit[1].trim() : null;
-
-    const wrap = document.createElement('div');
-    wrap.className = 'choice-wrap';
-
-    const card = document.createElement('button');
-    card.className = 'choice-card';
-    card.dataset.label = label;
-
-    const labelEl = document.createElement('span');
-    labelEl.className = 'choice-label';
-    labelEl.textContent = label;
-
-    const textEl = document.createElement('span');
-    textEl.className = 'choice-text';
-    textEl.textContent = optText;
-
-    card.appendChild(labelEl);
-    card.appendChild(textEl);
-
-    if(impact) {
-      const infoBtn = document.createElement('button');
-      infoBtn.className = 'choice-info-btn';
-      infoBtn.title = 'More info';
-      infoBtn.textContent = 'ℹ️';
-      infoBtn.onclick = (e) => {
-        e.stopPropagation();
-        impactEl.classList.toggle('visible');
-      };
-      card.appendChild(infoBtn);
-
-      const impactEl = document.createElement('div');
-      impactEl.className = 'choice-impact';
-      impactEl.textContent = impact;
-
-      wrap.appendChild(card);
-      wrap.appendChild(impactEl);
-    } else {
-      wrap.appendChild(card);
-    }
-
-    card.onclick = () => selectOption(label, optText);
-    choicesDiv.appendChild(wrap);
+    const parts = full.split(/\s*\|\s*IMPACT:\s*/i);
+    choicesDiv.appendChild(_buildChoiceCard(label, parts[0].trim(), parts[1] ? parts[1].trim() : null));
   });
-
   chatEl.appendChild(choicesDiv);
   chatEl.scrollTop = chatEl.scrollHeight;
 }
