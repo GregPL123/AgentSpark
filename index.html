@@ -1638,6 +1638,32 @@
     border-radius: 10px;
     padding: 1rem;
   }
+  .metric-info-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0 0.2rem;
+    vertical-align: middle;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+    line-height: 1;
+  }
+  .metric-info-btn:hover { opacity: 1; }
+  .metric-tip {
+    display: none;
+    font-size: 0.75rem;
+    color: var(--muted);
+    background: rgba(242,185,13,0.06);
+    border-left: 2px solid rgba(242,185,13,0.3);
+    border-radius: 0 6px 6px 0;
+    padding: 0.4rem 0.7rem;
+    margin: 0.2rem 0 0.4rem 0;
+    line-height: 1.5;
+    animation: msgIn 0.2s ease;
+  }
+  .metric-tip.visible { display: block; }
+
   .score-metric-label {
     font-size: 0.68rem;
     font-family: 'Space Mono', monospace;
@@ -4658,9 +4684,7 @@
 </div>
 
 <!-- ── FLOATING ACTION BUTTON (mobile results) ── -->
-<div class="results-fab" id="results-fab">
-  <button class="results-fab-btn" onclick="downloadZip()" title="Download ZIP">⬇</button>
-</div>
+
 
 <!-- ── FILE PREVIEW MODAL (iOS Sheet) ── -->
 <div class="ios-sheet-overlay" id="modal">
@@ -5913,12 +5937,27 @@ function renderScoring(data) {
   const isWarn = data.levelMatch !== 'ok';
   const suggestedLvl = t('levels').find(l => l.id === data.suggestedLevel);
 
-  const metricsHTML = (data.metrics || []).map(m => `
+  const _metricInfo = {
+    'Technical Complexity':  { low: '0–40: Simple tech stack, mostly standard tools.', mid: '40–70: Custom logic, APIs or real-time features needed.', high: '70–100: Complex architecture, microservices or AI.' },
+    'Business Complexity':   { low: '0–40: Straightforward model, few stakeholders.', mid: '40–70: Multiple user roles or revenue streams.', high: '70–100: Complex ops, compliance or multi-market.' },
+    'Integration Needs':     { low: '0–40: Few or no external services required.', mid: '40–70: Several APIs like payments or auth needed.', high: '70–100: Heavy integrations, real-time data sync.' },
+    'Scalability Demand':    { low: '0–40: Small user base, no scaling pressure.', mid: '40–70: Growth expected, some infrastructure planning.', high: '70–100: High traffic, distributed systems required.' },
+  };
+  const metricsHTML = (data.metrics || []).map(m => {
+    const info = _metricInfo[m.label] || {};
+    const tier = m.value < 40 ? info.low : m.value < 70 ? info.mid : info.high;
+    const tipId = 'tip-' + m.label.replace(/\s+/g,'-');
+    return `
     <div class="score-metric">
-      <div class="score-metric-label">${m.label}</div>
+      <div class="score-metric-label">
+        ${m.label}
+        ${tier ? `<button class="metric-info-btn" onclick="document.getElementById('${tipId}').classList.toggle('visible')" title="What does this mean?">ℹ️</button>` : ''}
+      </div>
+      ${tier ? `<div class="metric-tip" id="${tipId}">${tier}</div>` : ''}
       <div class="score-metric-bar"><div class="score-metric-fill" style="width:0%;background:${m.color}" data-target="${m.value}"></div></div>
       <div class="score-metric-value">${m.value}/100</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   const risksHTML = (data.risks || []).map(r => `<div class="risk-item">${r}</div>`).join('');
   const suggestionIcon = data.levelMatch === 'upgrade' ? '⬆' : data.levelMatch === 'downgrade' ? '⬇' : '✓';
